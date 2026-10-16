@@ -1,0 +1,64 @@
+version: "3.9"
+
+services:
+  # 1. محرك الذكاء الاصطناعي العصبي المحلي (Local GGUF Engine)
+  rexar-engine:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: rexar-local-engine
+    restart: unless-stopped
+    volumes:
+      - ./models:/models:ro
+    command: >
+      -m /models/qwen2.5-3b-instruct-q4_k_m.gguf
+      -c 2048
+      --threads 2
+      --host 0.0.0.0
+      --port 38985
+    ports:
+      - "127.0.0.1:38985:38985"
+    networks:
+      - rexar-internal-net
+
+  # 2. وسيط وبوابة ريكسار المشفرة (Go Gateway Kernel)
+  rexar-gateway:
+    image: ngstack/rexar-gateway:latest
+    container_name: rexar-gateway
+    restart: unless-stopped
+    environment:
+      - HOST=0.0.0.0
+      - PORT=38984
+      - AI_ENGINE_URL=http://rexar-local-engine:38985/v1/chat/completions
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:38984:38984"
+    depends_on:
+      - rexar-engine
+    networks:
+      - rexar-internal-net
+
+  # 3. واجهة المستخدم التفاعلية (Next.js Web UI)
+  rexar-ui:
+    image: ngstack/rexar-ui:latest
+    container_name: rexar-ui
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=38983
+      - HOSTNAME=0.0.0.0
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - GATEWAY_URL=http://rexar-gateway:38984/api/translate
+      - AUTH_SEND_URL=http://rexar-gateway:38984/api/auth/send-code
+      - AUTH_VERIFY_URL=http://rexar-gateway:38984/api/auth/verify-code
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "38983:38983"
+    depends_on:
+      - rexar-gateway
+    networks:
+      - rexar-internal-net
+
+networks:
+  rexar-internal-net:
+    driver: bridge
