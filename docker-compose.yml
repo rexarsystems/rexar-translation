@@ -1,25 +1,15 @@
-version: "3.9"
-
+# ==============================================================================
+# REXAR NEURAL TRANSLATION GATEWAY - DOCKER COMPOSE CONFIGURATION
+# Production Release 2026
+# Port Schema:
+#   - 38983 : Public Frontend Web UI (Next.js)
+#   - 38984 : Internal Gateway API (Go Binary - Obfuscated)
+#   - 38985 : (Optional) Internal AI Engine (llama-server with Qwen 2.5 3B GGUF)
+# ==============================================================================
 services:
-  # 1. محرك الذكاء الاصطناعي العصبي المحلي (Local GGUF Engine)
-  rexar-engine:
-    image: ghcr.io/ggml-org/llama.cpp:server
-    container_name: rexar-local-engine
-    restart: unless-stopped
-    volumes:
-      - ./models:/models:ro
-    command: >
-      -m /models/qwen2.5-3b-instruct-q4_k_m.gguf
-      -c 2048
-      --threads 2
-      --host 0.0.0.0
-      --port 38985
-    ports:
-      - "127.0.0.1:38985:38985"
-    networks:
-      - rexar-internal-net
-
-  # 2. وسيط وبوابة ريكسار المشفرة (Go Gateway Kernel)
+  # ----------------------------------------------------------------------------
+  # 1. Rexar Gateway Kernel (High-Performance Go Gateway - Obfuscated via Garble)
+  # ----------------------------------------------------------------------------
   rexar-gateway:
     image: ngstack/rexar-gateway:latest
     container_name: rexar-gateway
@@ -32,12 +22,12 @@ services:
       - ./data:/app/data
     ports:
       - "127.0.0.1:38984:38984"
-    depends_on:
-      - rexar-engine
     networks:
       - rexar-internal-net
 
-  # 3. واجهة المستخدم التفاعلية (Next.js Web UI)
+  # ----------------------------------------------------------------------------
+  # 2. Rexar Translation UI (Next.js Standalone Frontend)
+  # ----------------------------------------------------------------------------
   rexar-ui:
     image: ngstack/rexar-ui:latest
     container_name: rexar-ui
@@ -56,6 +46,30 @@ services:
       - "38983:38983"
     depends_on:
       - rexar-gateway
+    networks:
+      - rexar-internal-net
+
+  # ----------------------------------------------------------------------------
+  # 3. (اختياري / Optional) Local Neural Inference Engine (llama.cpp server)
+  # لتشغيل هذا المحرك بدون إنترنت: ضع ملف qwen2.5-3b-instruct-q4_k_m.gguf داخل مجلد models
+  # وشغله بالأمر: docker compose --profile offline-ai up -d
+  # ----------------------------------------------------------------------------
+  rexar-engine:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: rexar-local-engine
+    restart: unless-stopped
+    profiles:
+      - offline-ai
+    volumes:
+      - ./models:/models:ro
+    command: >
+      -m /models/qwen2.5-3b-instruct-q4_k_m.gguf
+      -c 2048
+      --threads 2
+      --host 0.0.0.0
+      --port 38985
+    ports:
+      - "127.0.0.1:38985:38985"
     networks:
       - rexar-internal-net
 
